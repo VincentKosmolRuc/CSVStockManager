@@ -7,8 +7,8 @@ st.set_page_config(page_title="Shipment Extractor", layout="wide")
 
 st.title("CSV Shipment Extractor")
 st.write(
-    "Upload one or more CSV files. The app extracts `reference` as product code and "
-    "`antal` as quantity shipped, then lets you download the result."
+    "Upload one or more CSV files. The app extracts `product_code` and "
+    "`Quantity_shipped`, then exports mapped columns: `reference` and `antal`."
 )
 
 
@@ -38,7 +38,7 @@ if uploaded_files:
         try:
             df, encoding_used = read_csv_flexible(uploaded_file)
 
-            required_columns = {"reference", "antal"}
+            required_columns = {"product_code", "Quantity_shipped"}
             missing = required_columns - set(df.columns)
             if missing:
                 st.warning(
@@ -46,7 +46,7 @@ if uploaded_files:
                 )
                 continue
 
-            extracted = df[["reference", "antal"]].copy()
+            extracted = df[["product_code", "Quantity_shipped"]].copy()
             extracted.columns = ["product_code", "quantity_shipped"]
             extracted["product_code"] = extracted["product_code"].astype(str).str.strip()
             extracted["quantity_shipped"] = pd.to_numeric(extracted["quantity_shipped"], errors="coerce").fillna(0)
@@ -78,9 +78,9 @@ if uploaded_files:
         st.subheader("File Summary")
         st.dataframe(pd.DataFrame(file_summaries), use_container_width=True)
 
-        st.subheader("Current Stock Input")
+        st.subheader("Manual Addition Input")
         stock_input_df = grouped_df.copy()
-        stock_input_df["current_stock"] = 0
+        stock_input_df["manual_addition"] = 0
         stock_input_df["new_stock"] = stock_input_df["quantity_shipped"]
 
         edited_df = st.data_editor(
@@ -90,17 +90,18 @@ if uploaded_files:
             column_config={
                 "product_code": st.column_config.TextColumn("Product code", disabled=True),
                 "quantity_shipped": st.column_config.NumberColumn("Shipped quantity", disabled=True, step=1),
-                "current_stock": st.column_config.NumberColumn("Current stock", min_value=0, step=1),
-                "new_stock": st.column_config.NumberColumn("New stock", disabled=True, step=1),
+                "manual_addition": st.column_config.NumberColumn("Manual number to add", min_value=0, step=1),
+                "new_stock": st.column_config.NumberColumn("Final stock", disabled=True, step=1),
             },
             disabled=["product_code", "quantity_shipped", "new_stock"],
         )
 
-        edited_df["current_stock"] = pd.to_numeric(edited_df["current_stock"], errors="coerce").fillna(0)
-        edited_df["new_stock"] = edited_df["current_stock"] + edited_df["quantity_shipped"]
+        edited_df["manual_addition"] = pd.to_numeric(edited_df["manual_addition"], errors="coerce").fillna(0)
+        edited_df["new_stock"] = edited_df["manual_addition"] + edited_df["quantity_shipped"]
 
         st.subheader("Final Export Preview")
         export_df = edited_df[["product_code", "new_stock"]].copy()
+        export_df.columns = ["reference", "antal"]
         st.dataframe(export_df, use_container_width=True)
 
         csv_data = export_df.to_csv(index=False).encode("utf-8")
@@ -111,6 +112,6 @@ if uploaded_files:
             mime="text/csv",
         )
     else:
-        st.info("No valid rows extracted. Check that your CSV files contain `reference` and `antal`.")
+        st.info("No valid rows extracted. Check that your CSV files contain `product_code` and `Quantity_shipped`.")
 else:
     st.info("Upload one or more CSV files to begin.")
