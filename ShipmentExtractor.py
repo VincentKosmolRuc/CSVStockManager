@@ -89,6 +89,8 @@ if uploaded_files:
         stock_input_df["current_stock"] = stock_input_df["product_code"].map(
             st.session_state["current_stock_values"]
         )
+        stock_input_df["plus"] = False
+        stock_input_df["minus"] = False
 
         edited_df = st.data_editor(
             stock_input_df,
@@ -103,6 +105,8 @@ if uploaded_files:
                 "current_stock": st.column_config.TextColumn(
                     "current stock"
                 ),
+                "plus": st.column_config.CheckboxColumn("+"),
+                "minus": st.column_config.CheckboxColumn("-"),
             },
             disabled=["product_name", "product_code", "quantity_shipped"],
         )
@@ -111,19 +115,26 @@ if uploaded_files:
             zip(edited_df["product_code"], edited_df["current_stock"])
         )
 
-        col1, col2, col3 = st.columns([3, 1, 1])
-        selected_code = col1.selectbox(
-            "Quick adjust current stock",
-            options=edited_df["product_code"].tolist(),
+        has_adjustments = False
+        for _, row in edited_df.iterrows():
+            code = row["product_code"]
+            current_value = parse_int_like(
+                st.session_state["current_stock_values"].get(code, "0")
+            )
+            if row["plus"]:
+                current_value += 1
+                has_adjustments = True
+            if row["minus"]:
+                current_value -= 1
+                has_adjustments = True
+            st.session_state["current_stock_values"][code] = str(current_value)
+
+        if has_adjustments:
+            st.rerun()
+
+        edited_df["current_stock"] = edited_df["product_code"].map(
+            st.session_state["current_stock_values"]
         )
-        if col2.button("+1", use_container_width=True):
-            current = parse_int_like(st.session_state["current_stock_values"].get(selected_code, "0"))
-            st.session_state["current_stock_values"][selected_code] = str(current + 1)
-            st.rerun()
-        if col3.button("-1", use_container_width=True):
-            current = parse_int_like(st.session_state["current_stock_values"].get(selected_code, "0"))
-            st.session_state["current_stock_values"][selected_code] = str(current - 1)
-            st.rerun()
 
         try:
             edited_df["current_stock"] = edited_df["current_stock"].apply(parse_int_like).astype("int64")
