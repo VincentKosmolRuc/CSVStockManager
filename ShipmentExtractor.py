@@ -7,8 +7,8 @@ st.set_page_config(page_title="Shipment Extractor", layout="wide")
 
 st.title("CSV Shipment Extractor")
 st.write(
-    "Upload one or more CSV files. The app extracts `product_code` and "
-    "`Quantity_shipped`, then exports mapped columns: `reference` and `antal`."
+    "Upload one or more CSV files. The app extracts `ProductCode` and "
+    "`QuantityShipped`, then exports mapped columns: `reference` and `antal`."
 )
 
 
@@ -38,7 +38,7 @@ if uploaded_files:
         try:
             df, encoding_used = read_csv_flexible(uploaded_file)
 
-            required_columns = {"product_code", "Quantity_shipped"}
+            required_columns = {"ProductCode", "QuantityShipped"}
             missing = required_columns - set(df.columns)
             if missing:
                 st.warning(
@@ -46,7 +46,7 @@ if uploaded_files:
                 )
                 continue
 
-            extracted = df[["product_code", "Quantity_shipped"]].copy()
+            extracted = df[["ProductCode", "QuantityShipped"]].copy()
             extracted.columns = ["product_code", "quantity_shipped"]
             extracted["product_code"] = extracted["product_code"].astype(str).str.strip()
             extracted["quantity_shipped"] = pd.to_numeric(extracted["quantity_shipped"], errors="coerce").fillna(0)
@@ -112,6 +112,6 @@ if uploaded_files:
             mime="text/csv",
         )
     else:
-        st.info("No valid rows extracted. Check that your CSV files contain `product_code` and `Quantity_shipped`.")
+        st.info("No valid rows extracted. Check that your CSV files contain `ProductCode` and `QuantityShipped`.")
 else:
     st.info("Upload one or more CSV files to begin.")
