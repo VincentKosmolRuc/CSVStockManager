@@ -86,8 +86,6 @@ if uploaded_files:
         ):
             stock_input_df = grouped_df.copy()
             stock_input_df["current_stock"] = "0"
-            stock_input_df["plus"] = False
-            stock_input_df["minus"] = False
             st.session_state["stock_table_df"] = stock_input_df
             st.session_state["upload_signature"] = upload_signature
 
@@ -103,28 +101,11 @@ if uploaded_files:
                     "QuantityShipped", disabled=True, step=1, format="%d"
                 ),
                 "current_stock": st.column_config.TextColumn("current stock"),
-                "plus": st.column_config.CheckboxColumn("+"),
-                "minus": st.column_config.CheckboxColumn("-"),
             },
             disabled=["product_name", "product_code", "quantity_shipped"],
         )
 
-        has_adjustment = False
-        for idx, row in edited_df.iterrows():
-            current_value = parse_int_like(row["current_stock"])
-            if row["plus"]:
-                current_value += 1
-                has_adjustment = True
-            if row["minus"]:
-                current_value -= 1
-                has_adjustment = True
-            edited_df.at[idx, "current_stock"] = str(current_value)
-            edited_df.at[idx, "plus"] = False
-            edited_df.at[idx, "minus"] = False
-
         st.session_state["stock_table_df"] = edited_df.copy()
-        if has_adjustment:
-            st.rerun()
 
         try:
             edited_df["current_stock"] = edited_df["current_stock"].apply(parse_int_like).astype("int64")
