@@ -23,6 +23,13 @@ def read_csv_flexible(uploaded_file):
     raise ValueError(f"Could not read file: {uploaded_file.name}")
 
 
+def parse_int_like(value):
+    text = str(value).strip()
+    if text in ("", "-", "+"):
+        return 0
+    return int(float(text))
+
+
 uploaded_files = st.file_uploader(
     "Upload CSV file(s)",
     type=["csv"],
@@ -73,7 +80,15 @@ if uploaded_files:
 
         st.caption("Skriv nuværende antal på lager ind i 'current stock' kolonnen.")
         stock_input_df = grouped_df.copy()
-        stock_input_df["current_stock"] = 0
+        stock_input_df["current_stock"] = "0"
+
+        if "current_stock_values" not in st.session_state:
+            st.session_state["current_stock_values"] = {}
+        for code in stock_input_df["product_code"]:
+            st.session_state["current_stock_values"].setdefault(code, "0")
+        stock_input_df["current_stock"] = stock_input_df["product_code"].map(
+            st.session_state["current_stock_values"]
+        )
 
         edited_df = st.data_editor(
             stock_input_df,
@@ -85,16 +100,37 @@ if uploaded_files:
                 "quantity_shipped": st.column_config.NumberColumn(
                     "QuantityShipped", disabled=True, step=1, format="%d"
                 ),
-                "current_stock": st.column_config.NumberColumn(
-                    "current stock", step=1, format="%d"
+                "current_stock": st.column_config.TextColumn(
+                    "current stock"
                 ),
             },
             disabled=["product_name", "product_code", "quantity_shipped"],
         )
 
-        edited_df["current_stock"] = pd.to_numeric(
-            edited_df["current_stock"], errors="coerce"
-        ).fillna(0).round().astype("int64")
+        st.session_state["current_stock_values"] = dict(
+            zip(edited_df["product_code"], edited_df["current_stock"])
+        )
+
+        col1, col2, col3 = st.columns([3, 1, 1])
+        selected_code = col1.selectbox(
+            "Quick adjust current stock",
+            options=edited_df["product_code"].tolist(),
+        )
+        if col2.button("+1", use_container_width=True):
+            current = parse_int_like(st.session_state["current_stock_values"].get(selected_code, "0"))
+            st.session_state["current_stock_values"][selected_code] = str(current + 1)
+            st.rerun()
+        if col3.button("-1", use_container_width=True):
+            current = parse_int_like(st.session_state["current_stock_values"].get(selected_code, "0"))
+            st.session_state["current_stock_values"][selected_code] = str(current - 1)
+            st.rerun()
+
+        try:
+            edited_df["current_stock"] = edited_df["current_stock"].apply(parse_int_like).astype("int64")
+        except ValueError:
+            st.error("`current stock` must be a whole number, e.g. -8, 0, 12.")
+            st.stop()
+
         edited_df["final_stock"] = (
             edited_df["current_stock"] + edited_df["quantity_shipped"]
         ).astype("int64")
