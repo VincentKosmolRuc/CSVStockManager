@@ -67,10 +67,12 @@ if uploaded_files:
     if extracted_parts:
         result_df = pd.concat(extracted_parts, ignore_index=True)
         result_df = result_df[result_df["product_code"] != ""]
+
         grouped_df = result_df.groupby("product_code", as_index=False).agg(
             product_name=("product_name", "first"),
             quantity_shipped=("quantity_shipped", "sum"),
         )
+
         grouped_df = grouped_df.sort_values("product_code").reset_index(drop=True)
         grouped_df["quantity_shipped"] = (
             pd.to_numeric(grouped_df["quantity_shipped"], errors="coerce")
@@ -80,17 +82,19 @@ if uploaded_files:
         )
 
         st.caption("Skriv nuværende antal på lager ind i 'current stock' kolonnen.")
+
+        # Initialize editor state ONLY when files change
         if (
-            "stock_table_df" not in st.session_state
-            or st.session_state.get("upload_signature") != upload_signature
+            "upload_signature" not in st.session_state
+            or st.session_state["upload_signature"] != upload_signature
         ):
-            stock_input_df = grouped_df.copy()
-            stock_input_df["current_stock"] = "0"
-            st.session_state["stock_table_df"] = stock_input_df
+            grouped_df["current_stock"] = "0"
+            st.session_state["stock_editor"] = grouped_df.copy()
             st.session_state["upload_signature"] = upload_signature
 
+        # Data editor (state handled automatically via key)
         edited_df = st.data_editor(
-            st.session_state["stock_table_df"],
+            st.session_state["stock_editor"],
             key="stock_editor",
             use_container_width=True,
             hide_index=True,
@@ -105,22 +109,26 @@ if uploaded_files:
             disabled=["product_name", "product_code", "quantity_shipped"],
         )
 
-        st.session_state["stock_table_df"] = edited_df.copy()
-
+        # Parse input safely
         try:
-            edited_df["current_stock"] = edited_df["current_stock"].apply(parse_int_like).astype("int64")
+            edited_df["current_stock"] = (
+                edited_df["current_stock"].apply(parse_int_like).astype("int64")
+            )
         except ValueError:
             st.error("`current stock` must be a whole number, e.g. -8, 0, 12.")
             st.stop()
 
+        # Calculate final stock
         edited_df["final_stock"] = (
             edited_df["current_stock"] + edited_df["quantity_shipped"]
         ).astype("int64")
 
+        # Export format
         export_df = edited_df[["product_code", "final_stock"]].copy()
         export_df.columns = ["reference", "antal"]
 
         csv_data = export_df.to_csv(index=False).encode("utf-8")
+
         st.download_button(
             label="Download final stock CSV",
             data=csv_data,
