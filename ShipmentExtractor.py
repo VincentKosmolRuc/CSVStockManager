@@ -7,8 +7,7 @@ st.set_page_config(page_title="Shipment Extractor", layout="wide")
 
 st.title("CSV Shipment Extractor")
 st.write(
-    "Upload one or more CSV files. The app extracts `ProductName`, `ProductCode` and "
-    "`QuantityShipped`, then exports mapped columns: `reference` and `antal`."
+    "Upload en eller flere CSV filer. Søg produkterne i shoppen via d-nummer og skriv nuværende antal ind i 'current stock' kolonnen."
 )
 
 
@@ -35,7 +34,7 @@ if uploaded_files:
 
     for uploaded_file in uploaded_files:
         try:
-            df, encoding_used = read_csv_flexible(uploaded_file)
+            df, _ = read_csv_flexible(uploaded_file)
 
             required_columns = {"ProductName", "ProductCode", "QuantityShipped"}
             missing = required_columns - set(df.columns)
@@ -65,8 +64,14 @@ if uploaded_files:
             quantity_shipped=("quantity_shipped", "sum"),
         )
         grouped_df = grouped_df.sort_values("product_code").reset_index(drop=True)
+        grouped_df["quantity_shipped"] = (
+            pd.to_numeric(grouped_df["quantity_shipped"], errors="coerce")
+            .fillna(0)
+            .round()
+            .astype("int64")
+        )
 
-        st.caption("Skriv nuvaerende antal paa lager, hvis det er over 0.")
+        st.caption("Skriv nuværende antal på lager ind i 'current stock' kolonnen.")
         stock_input_df = grouped_df.copy()
         stock_input_df["current_stock"] = 0
 
@@ -78,10 +83,10 @@ if uploaded_files:
                 "product_name": st.column_config.TextColumn("ProductName", disabled=True),
                 "product_code": st.column_config.TextColumn("ProductCode", disabled=True),
                 "quantity_shipped": st.column_config.NumberColumn(
-                    "QuantityShipped", disabled=True, step=1
+                    "QuantityShipped", disabled=True, step=1, format="%d"
                 ),
                 "current_stock": st.column_config.NumberColumn(
-                    "current stock", min_value=0, step=1
+                    "current stock", step=1, format="%d"
                 ),
             },
             disabled=["product_name", "product_code", "quantity_shipped"],
@@ -89,8 +94,10 @@ if uploaded_files:
 
         edited_df["current_stock"] = pd.to_numeric(
             edited_df["current_stock"], errors="coerce"
-        ).fillna(0)
-        edited_df["final_stock"] = edited_df["current_stock"] + edited_df["quantity_shipped"]
+        ).fillna(0).round().astype("int64")
+        edited_df["final_stock"] = (
+            edited_df["current_stock"] + edited_df["quantity_shipped"]
+        ).astype("int64")
 
         export_df = edited_df[["product_code", "final_stock"]].copy()
         export_df.columns = ["reference", "antal"]
