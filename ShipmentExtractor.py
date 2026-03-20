@@ -12,7 +12,6 @@ st.write(
 
 
 def read_csv_flexible(uploaded_file):
-    """Read CSV with robust delimiter and encoding handling."""
     raw = uploaded_file.getvalue()
     for encoding in ("utf-8", "utf-8-sig", "latin-1"):
         try:
@@ -83,18 +82,18 @@ if uploaded_files:
 
         st.caption("Skriv nuværende antal på lager ind i 'current stock' kolonnen.")
 
-        # Initialize editor state ONLY when files change
+        # ✅ Initialize ONLY when files change
         if (
             "upload_signature" not in st.session_state
             or st.session_state["upload_signature"] != upload_signature
         ):
             grouped_df["current_stock"] = "0"
-            st.session_state["stock_editor"] = grouped_df.copy()
+            st.session_state["stock_data"] = grouped_df.copy()
             st.session_state["upload_signature"] = upload_signature
 
-        # Data editor (state handled automatically via key)
+        # ✅ Use data_editor WITHOUT writing to its key manually
         edited_df = st.data_editor(
-            st.session_state["stock_editor"],
+            st.session_state["stock_data"],
             key="stock_editor",
             use_container_width=True,
             hide_index=True,
@@ -109,7 +108,10 @@ if uploaded_files:
             disabled=["product_name", "product_code", "quantity_shipped"],
         )
 
-        # Parse input safely
+        # ✅ Update YOUR state (not the widget key)
+        st.session_state["stock_data"] = edited_df.copy()
+
+        # Parse input
         try:
             edited_df["current_stock"] = (
                 edited_df["current_stock"].apply(parse_int_like).astype("int64")
@@ -123,7 +125,7 @@ if uploaded_files:
             edited_df["current_stock"] + edited_df["quantity_shipped"]
         ).astype("int64")
 
-        # Export format
+        # Export
         export_df = edited_df[["product_code", "final_stock"]].copy()
         export_df.columns = ["reference", "antal"]
 
