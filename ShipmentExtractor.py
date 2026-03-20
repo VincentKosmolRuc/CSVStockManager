@@ -90,7 +90,7 @@ if uploaded_files:
             st.session_state["stock_data"] = grouped_df.copy()
             st.session_state["upload_signature"] = upload_signature
 
-        # ✅ Render editor and capture output safely
+        # ✅ Data editor
         edited_df = st.data_editor(
             st.session_state["stock_data"],
             key="stock_editor",
@@ -107,11 +107,12 @@ if uploaded_files:
             disabled=["product_name", "product_code", "quantity_shipped"],
         )
 
-        # ✅ Only update if valid DataFrame (prevents crash)
+        # ✅ 🔥 THE FIX: only update if something actually changed
         if isinstance(edited_df, pd.DataFrame):
-            st.session_state["stock_data"] = edited_df.copy()
+            if not edited_df.equals(st.session_state["stock_data"]):
+                st.session_state["stock_data"] = edited_df.copy()
 
-        # Always read from session state (single source of truth)
+        # Always use session state as truth
         edited_df = st.session_state["stock_data"].copy()
 
         # Parse input
