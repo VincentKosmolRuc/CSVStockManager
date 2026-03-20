@@ -2,7 +2,6 @@ import io
 import streamlit as st
 import pandas as pd
 
-
 st.set_page_config(page_title="Shipment Extractor", layout="wide")
 
 st.title("CSV Shipment Extractor")
@@ -82,7 +81,7 @@ if uploaded_files:
 
         st.caption("Skriv nuværende antal på lager ind i 'current stock' kolonnen.")
 
-        # ✅ Initialize ONLY when files change
+        # Initialize ONLY when files change
         if (
             "upload_signature" not in st.session_state
             or st.session_state["upload_signature"] != upload_signature
@@ -91,8 +90,11 @@ if uploaded_files:
             st.session_state["stock_data"] = grouped_df.copy()
             st.session_state["upload_signature"] = upload_signature
 
-        # ✅ Use data_editor WITHOUT writing to its key manually
-        edited_df = st.data_editor(
+        # ✅ Callback to sync state AFTER edit
+        def on_edit():
+            st.session_state["stock_data"] = st.session_state["stock_editor"].copy()
+
+        st.data_editor(
             st.session_state["stock_data"],
             key="stock_editor",
             use_container_width=True,
@@ -106,10 +108,11 @@ if uploaded_files:
                 "current_stock": st.column_config.TextColumn("current stock"),
             },
             disabled=["product_name", "product_code", "quantity_shipped"],
+            on_change=on_edit,  # 🔥 FIX
         )
 
-        # ✅ Update YOUR state (not the widget key)
-        st.session_state["stock_data"] = edited_df.copy()
+        # Always read from session state (single source of truth)
+        edited_df = st.session_state["stock_data"].copy()
 
         # Parse input
         try:
