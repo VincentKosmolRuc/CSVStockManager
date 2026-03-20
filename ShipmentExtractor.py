@@ -38,6 +38,7 @@ uploaded_files = st.file_uploader(
 
 if uploaded_files:
     extracted_parts = []
+    upload_signature = tuple((f.name, f.size) for f in uploaded_files)
 
     for uploaded_file in uploaded_files:
         try:
@@ -79,56 +80,51 @@ if uploaded_files:
         )
 
         st.caption("Skriv nuværende antal på lager ind i 'current stock' kolonnen.")
-        stock_input_df = grouped_df.copy()
-        stock_input_df["current_stock"] = "0"
+        if (
+            "stock_table_df" not in st.session_state
+            or st.session_state.get("upload_signature") != upload_signature
+        ):
+            stock_input_df = grouped_df.copy()
+            stock_input_df["current_stock"] = "0"
+            stock_input_df["plus"] = False
+            stock_input_df["minus"] = False
+            st.session_state["stock_table_df"] = stock_input_df
+            st.session_state["upload_signature"] = upload_signature
 
-        if "current_stock_values" not in st.session_state:
-            st.session_state["current_stock_values"] = {}
-        for code in stock_input_df["product_code"]:
-            st.session_state["current_stock_values"].setdefault(code, "0")
-        stock_input_df["current_stock"] = stock_input_df["product_code"].map(
-            st.session_state["current_stock_values"]
+        edited_df = st.data_editor(
+            st.session_state["stock_table_df"],
+            key="stock_editor",
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "product_name": st.column_config.TextColumn("ProductName", disabled=True),
+                "product_code": st.column_config.TextColumn("ProductCode", disabled=True),
+                "quantity_shipped": st.column_config.NumberColumn(
+                    "QuantityShipped", disabled=True, step=1, format="%d"
+                ),
+                "current_stock": st.column_config.TextColumn("current stock"),
+                "plus": st.column_config.CheckboxColumn("+"),
+                "minus": st.column_config.CheckboxColumn("-"),
+            },
+            disabled=["product_name", "product_code", "quantity_shipped"],
         )
 
-        table_col, adjust_col = st.columns([6, 2])
-        with table_col:
-            edited_df = st.data_editor(
-                stock_input_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "product_name": st.column_config.TextColumn("ProductName", disabled=True),
-                    "product_code": st.column_config.TextColumn("ProductCode", disabled=True),
-                    "quantity_shipped": st.column_config.NumberColumn(
-                        "QuantityShipped", disabled=True, step=1, format="%d"
-                    ),
-                    "current_stock": st.column_config.TextColumn("current stock"),
-                },
-                disabled=["product_name", "product_code", "quantity_shipped"],
-            )
+        has_adjustment = False
+        for idx, row in edited_df.iterrows():
+            current_value = parse_int_like(row["current_stock"])
+            if row["plus"]:
+                current_value += 1
+                has_adjustment = True
+            if row["minus"]:
+                current_value -= 1
+                has_adjustment = True
+            edited_df.at[idx, "current_stock"] = str(current_value)
+            edited_df.at[idx, "plus"] = False
+            edited_df.at[idx, "minus"] = False
 
-        st.session_state["current_stock_values"] = dict(
-            zip(edited_df["product_code"], edited_df["current_stock"])
-        )
-
-        with adjust_col:
-            st.caption("Juster (+/-)")
-            for idx, row in edited_df.iterrows():
-                code = row["product_code"]
-                c1, c2, c3 = st.columns([2, 1, 1])
-                c1.caption(code)
-                if c2.button("-", key=f"minus_{idx}_{code}"):
-                    current = parse_int_like(st.session_state["current_stock_values"].get(code, "0"))
-                    st.session_state["current_stock_values"][code] = str(current - 1)
-                    st.rerun()
-                if c3.button("+", key=f"plus_{idx}_{code}"):
-                    current = parse_int_like(st.session_state["current_stock_values"].get(code, "0"))
-                    st.session_state["current_stock_values"][code] = str(current + 1)
-                    st.rerun()
-
-        edited_df["current_stock"] = edited_df["product_code"].map(
-            st.session_state["current_stock_values"]
-        )
+        st.session_state["stock_table_df"] = edited_df.copy()
+        if has_adjustment:
+            st.rerun()
 
         try:
             edited_df["current_stock"] = edited_df["current_stock"].apply(parse_int_like).astype("int64")
