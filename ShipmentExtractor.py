@@ -86,7 +86,7 @@ if uploaded_files:
             "upload_signature" not in st.session_state
             or st.session_state["upload_signature"] != upload_signature
         ):
-            grouped_df["current_stock"] = "0"
+            grouped_df["current_stock"] = 0
             st.session_state["stock_data"] = grouped_df.copy()
             st.session_state["upload_signature"] = upload_signature
 
@@ -102,7 +102,12 @@ if uploaded_files:
                     "quantity_shipped": st.column_config.NumberColumn(
                         "QuantityShipped", disabled=True, step=1, format="%d"
                     ),
-                    "current_stock": st.column_config.TextColumn("current stock"),
+                    "current_stock": st.column_config.NumberColumn(
+                        "current stock",
+                        step=1,
+                        format="%d",
+                        min_value=-1000000,  # allow negatives
+                    ),
                 },
                 disabled=["product_name", "product_code", "quantity_shipped"],
             )
@@ -115,19 +120,15 @@ if uploaded_files:
 
             df = st.session_state["stock_data"].copy()
 
-            # Parse input
+            # Parse input (just in case)
             try:
-                df["current_stock"] = (
-                    df["current_stock"].apply(parse_int_like).astype("int64")
-                )
+                df["current_stock"] = df["current_stock"].apply(parse_int_like).astype("int64")
             except ValueError:
                 st.error("`current stock` must be a whole number, e.g. -8, 0, 12.")
                 st.stop()
 
             # Calculate final stock
-            df["final_stock"] = (
-                df["current_stock"] + df["quantity_shipped"]
-            ).astype("int64")
+            df["final_stock"] = (df["current_stock"] + df["quantity_shipped"]).astype("int64")
 
             export_df = df[["product_code", "final_stock"]].copy()
             export_df.columns = ["reference", "antal"]
