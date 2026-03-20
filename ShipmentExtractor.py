@@ -81,7 +81,7 @@ if uploaded_files:
 
         st.caption("Skriv nuværende antal på lager ind i 'current stock' kolonnen.")
 
-        # ✅ Initialize ONLY when files change
+        # Initialize only when files change
         if (
             "upload_signature" not in st.session_state
             or st.session_state["upload_signature"] != upload_signature
@@ -90,29 +90,29 @@ if uploaded_files:
             st.session_state["stock_data"] = grouped_df.copy()
             st.session_state["upload_signature"] = upload_signature
 
-        # ✅ Data editor
-        edited_df = st.data_editor(
-            st.session_state["stock_data"],
-            key="stock_editor",
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "product_name": st.column_config.TextColumn("ProductName", disabled=True),
-                "product_code": st.column_config.TextColumn("ProductCode", disabled=True),
-                "quantity_shipped": st.column_config.NumberColumn(
-                    "QuantityShipped", disabled=True, step=1, format="%d"
-                ),
-                "current_stock": st.column_config.TextColumn("current stock"),
-            },
-            disabled=["product_name", "product_code", "quantity_shipped"],
-        )
+        # 🧱 FORM = no rerun while typing
+        with st.form("stock_form"):
+            edited_df = st.data_editor(
+                st.session_state["stock_data"],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "product_name": st.column_config.TextColumn("ProductName", disabled=True),
+                    "product_code": st.column_config.TextColumn("ProductCode", disabled=True),
+                    "quantity_shipped": st.column_config.NumberColumn(
+                        "QuantityShipped", disabled=True, step=1, format="%d"
+                    ),
+                    "current_stock": st.column_config.TextColumn("current stock"),
+                },
+                disabled=["product_name", "product_code", "quantity_shipped"],
+            )
 
-        # ✅ 🔥 THE FIX: only update if something actually changed
-        if isinstance(edited_df, pd.DataFrame):
-            if not edited_df.equals(st.session_state["stock_data"]):
-                st.session_state["stock_data"] = edited_df.copy()
+            submitted = st.form_submit_button("Apply changes")
 
-        # Always use session state as truth
+        # ✅ Only update AFTER user confirms
+        if submitted and isinstance(edited_df, pd.DataFrame):
+            st.session_state["stock_data"] = edited_df.copy()
+
         edited_df = st.session_state["stock_data"].copy()
 
         # Parse input
