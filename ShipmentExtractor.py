@@ -1,17 +1,14 @@
 import io
-import os
 import streamlit as st
 import pandas as pd
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_STOCK_CSV = os.path.join(SCRIPT_DIR, "FFV12Marts.csv")
 
 st.set_page_config(page_title="Shipment Extractor", layout="wide")
 
 st.title("CSV Shipment Extractor")
 st.write(
-    "Upload en eller flere forsendelses-CSV'er. Du kan uploade en shop-eksport (fx FFV12Marts.csv) "
-    "med kolonnerne Reference og Antal, så 'current stock' udfyldes automatisk for matchende varenumre."
+    "Upload en eller flere forsendelses-CSV'er. Upload også din **nuværende lager**-eksport (samme format som "
+    "FFV12Marts.csv: semikolon-separeret med kolonnerne **Reference** og **Antal**), så 'current stock' "
+    "udfyldes for matchende varenumre (ProductCode = Reference)."
 )
 
 
@@ -34,13 +31,9 @@ def parse_int_like(value):
     return int(float(text))
 
 
-def load_stock_map_reference_to_antal(source):
-    """Build product reference -> stock from FFV12Marts-style CSV (semicolon; columns Reference, Antal)."""
-    if isinstance(source, str):
-        with open(source, "rb") as f:
-            raw = f.read()
-    else:
-        raw = source.getvalue()
+def load_stock_map_reference_to_antal(uploaded_file):
+    """Build product reference -> stock from uploaded FFV12Marts-style CSV (semicolon; Reference, Antal)."""
+    raw = uploaded_file.getvalue()
     last_err = None
     for encoding in ("utf-8", "utf-8-sig", "latin-1"):
         try:
@@ -64,30 +57,22 @@ def load_stock_map_reference_to_antal(source):
     return df.set_index("Reference")["Antal"].astype("int64").to_dict()
 
 
-stock_catalog_file = st.file_uploader(
-    "Shop-lager CSV (valgfri, fx FFV12Marts.csv)",
+current_stock_file = st.file_uploader(
+    "Nuværende lager (CSV, fx FFV12Marts-eksport)",
     type=["csv"],
     accept_multiple_files=False,
-    key="stock_catalog_uploader",
-)
-use_local_ffv = st.checkbox(
-    f"Brug FFV12Marts.csv fra app-mappen",
-    value=os.path.isfile(DEFAULT_STOCK_CSV),
-    disabled=not os.path.isfile(DEFAULT_STOCK_CSV),
-    help=f"Søger efter: {DEFAULT_STOCK_CSV}",
+    key="current_stock_uploader",
+    help="Forventer samme struktur som FFV12Marts.csv: ; som separator og kolonnerne Reference og Antal.",
 )
 
 stock_map = {}
 stock_source_label = None
-try:
-    if stock_catalog_file is not None:
-        stock_map = load_stock_map_reference_to_antal(stock_catalog_file)
-        stock_source_label = stock_catalog_file.name
-    elif use_local_ffv:
-        stock_map = load_stock_map_reference_to_antal(DEFAULT_STOCK_CSV)
-        stock_source_label = "FFV12Marts.csv"
-except Exception as err:
-    st.warning(f"Kunne ikke læse lagercatalog: {err}")
+if current_stock_file is not None:
+    try:
+        stock_map = load_stock_map_reference_to_antal(current_stock_file)
+        stock_source_label = current_stock_file.name
+    except Exception as err:
+        st.warning(f"Kunne ikke læse lager-CSV: {err}")
 
 uploaded_files = st.file_uploader(
     "Upload CSV file(s)",
@@ -98,10 +83,8 @@ uploaded_files = st.file_uploader(
 if uploaded_files:
     extracted_parts = []
     shipment_sig = tuple((f.name, f.size) for f in uploaded_files)
-    if stock_catalog_file is not None:
-        stock_sig = ("upload", stock_catalog_file.name, stock_catalog_file.size)
-    elif use_local_ffv and os.path.isfile(DEFAULT_STOCK_CSV):
-        stock_sig = ("local", os.path.getmtime(DEFAULT_STOCK_CSV))
+    if current_stock_file is not None:
+        stock_sig = ("stock", current_stock_file.name, current_stock_file.size)
     else:
         stock_sig = ("none",)
     upload_signature = (shipment_sig, stock_sig)
